@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Day-ahead wind forecast accuracy">
+  <rect width="32" height="32" rx="6" fill="#090f11"/>
+  <!-- Metered output: the authoritative bone line. -->
+  <path d="M4 22 L9 14 L14 19 L19 8 L24 15 L28 11" fill="none" stroke="#ece6d8" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Decision-time forecast: amber, and deliberately not a perfect match. -->
+  <path d="M4 25 L9 18 L14 20 L19 13 L24 17 L28 15" fill="none" stroke="#e9a23b" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,101 @@
+/* ============================================================================
+ * DESIGN SYSTEM — read this before writing any component CSS.
+ *
+ * Direction: a trading-desk instrument panel, not a SaaS dashboard. Dark,
+ * dense, flat (1px hairlines, no drop shadows, 2-6px radii), information
+ * first and decoration nowhere.
+ *
+ * Typography: IBM Plex Sans (UI) + IBM Plex Mono (every number), self-hosted
+ * via @fontsource so the app renders identically offline in Docker. Plex was
+ * drawn for industrial/enterprise instrumentation, which is exactly the
+ * register we want; one superfamily keeps sans and mono metrically matched.
+ * All data uses the mono face with `tabular-nums` so MW figures keep their
+ * column and don't jitter as the cutoff selector moves them.
+ *
+ * Colour: a near-black petrol base (#090f11 -> #16242a, a cool green-cyan
+ * cast rather than Tailwind slate's blue-violet one), plus exactly four
+ * accent hues, each with one job and no decorative use: bone = metered truth,
+ * amber = the forecast and its risk band (warm = uncertain), teal = anything
+ * interactive or "long", coral = risk / "short". Four hues is the budget;
+ * do not add a fifth.
+ *
+ * Spacing: a strict 4px grid exposed as --s-1..--s-8. Use the tokens, never a
+ * raw px value, so panels across Tasks 8 and 9 line up without negotiation.
+ *
+ * No Tailwind, no component library — deliberately. Compose the primitives in
+ * primitives.css and extend with a component stylesheet when you need more.
+ * ==========================================================================*/
+
+:root {
+  color-scheme: dark;
+
+  /* ── Surfaces ──────────────────────────────────────────────────────── */
+  --c-base: #090f11;
+  --c-surface: #101a1d;
+  --c-surface-2: #16242a;
+  --c-line: #1e3137;
+  --c-line-strong: #2a454d;
+
+  /* ── Text ─────────────────────────────────────────────────────────── */
+  --c-text: #e4ecee;
+  --c-text-dim: #92a7ad;
+  --c-text-faint: #5f757c;
+
+  /* ── Data hues (four, each with exactly one job) ──────────────────── */
+  --c-actual: #ece6d8; /* metered output — FUELHH ground truth */
+  --c-forecast: #e9a23b; /* decision-time forecast — WINDFOR */
+  --c-band: rgb(233 162 59 / 16%); /* risk-band fill */
+  --c-band-edge: rgb(233 162 59 / 38%); /* risk-band boundary */
+  --c-accent: #46c3b2; /* interactive: selected, focus, hover */
+  --c-alert: #e2574c; /* risk, breach, attention */
+
+  /* Signed-error semantics — alias the hues above, don't introduce new ones. */
+  --c-over: var(--c-accent); /* actual < forecast: over-forecast, desk is long */
+  --c-under: var(--c-alert); /* actual > forecast: under-forecast, desk is short */
+
+  /* ── Type ─────────────────────────────────────────────────────────── */
+  --f-sans: 'IBM Plex Sans Variable', 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --f-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  --t-micro: 0.6875rem; /* 11px — uppercase tracked labels only */
+  --t-small: 0.75rem; /* 12px — captions, axis ticks, footnotes */
+  --t-body: 0.8125rem; /* 13px — base body size (dense tool, not 16px marketing) */
+  --t-lead: 0.9375rem; /* 15px — panel titles, lead paragraphs */
+  --t-h3: 1.125rem; /* 18px */
+  --t-h2: 1.5rem; /* 24px */
+  --t-metric: 1.875rem; /* 30px — headline stat values */
+
+  --w-regular: 400;
+  --w-medium: 500;
+  --w-semibold: 600;
+
+  --lh-tight: 1.2;
+  --lh-data: 1.4;
+  --lh-prose: 1.6;
+
+  --tracking-micro: 0.09em;
+  --tracking-tight: -0.01em;
+
+  /* ── Space: strict 4px grid ───────────────────────────────────────── */
+  --s-1: 0.25rem; /* 4px  */
+  --s-2: 0.5rem; /* 8px  */
+  --s-3: 0.75rem; /* 12px */
+  --s-4: 1rem; /* 16px */
+  --s-5: 1.5rem; /* 24px */
+  --s-6: 2rem; /* 32px */
+  --s-7: 3rem; /* 48px */
+  --s-8: 4rem; /* 64px */
+
+  /* ── Shape ────────────────────────────────────────────────────────── */
+  --r-1: 2px;
+  --r-2: 4px;
+  --r-3: 6px;
+  --border: 1px solid var(--c-line);
+  --border-strong: 1px solid var(--c-line-strong);
+  --focus-ring: 0 0 0 2px rgb(70 195 178 / 45%);
+
+  /* ── Layout ───────────────────────────────────────────────────────── */
+  --max-w: 90rem; /* 1440px */
+  --panel-pad: var(--s-5);
+  --grid-gap: var(--s-4);
+}

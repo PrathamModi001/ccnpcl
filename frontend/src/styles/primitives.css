@@ -1,0 +1,246 @@
+/* ============================================================================
+ * PRIMITIVES — the shared building blocks for every panel in this app.
+ *
+ * Tasks 8 and 9: compose these classes instead of inventing new colours or
+ * raw px spacing. If you need something genuinely new, add it here (with a
+ * token from theme.css) so the next panel can reuse it.
+ * ==========================================================================*/
+
+/* ── Panel: the single container shape used for every region ─────────── */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--panel-pad);
+  background: var(--c-surface);
+  border: var(--border);
+  border-radius: var(--r-3);
+}
+
+.panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-4);
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: var(--s-3);
+  border-bottom: var(--border);
+}
+
+.panel__title {
+  margin: 0;
+  font-size: var(--t-lead);
+  font-weight: var(--w-semibold);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--lh-tight);
+}
+
+.panel__note {
+  margin: 0;
+  color: var(--c-text-faint);
+  font-size: var(--t-small);
+}
+
+/* ── Labels: the one place uppercase tracking is allowed ─────────────── */
+.label-micro {
+  color: var(--c-text-faint);
+  font-size: var(--t-micro);
+  font-weight: var(--w-medium);
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+}
+
+/* ── Numbers: always mono, always tabular ────────────────────────────── */
+.num {
+  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'zero' 1;
+}
+
+/* ── Metric tile: one headline figure plus its label ─────────────────── */
+/* The 1px gaps *are* the hairlines: the grid background shows through them.
+ * This keeps the rule weight identical however many tiles there are and
+ * however they wrap, with no :last-child border bookkeeping. */
+.metric-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 1px;
+  background: var(--c-line);
+  border: var(--border);
+  border-radius: var(--r-2);
+  overflow: hidden;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-4);
+  background: var(--c-surface-2);
+}
+
+.metric__value {
+  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--t-metric);
+  font-weight: var(--w-regular);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+}
+
+.metric__sub {
+  color: var(--c-text-dim);
+  font-size: var(--t-small);
+  line-height: var(--lh-data);
+}
+
+/* Semantic value tints — use only where the sign genuinely carries meaning. */
+.metric__value--over,
+.value--over {
+  color: var(--c-over);
+}
+
+.metric__value--under,
+.value--under {
+  color: var(--c-under);
+}
+
+/* ── Controls ────────────────────────────────────────────────────────── */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.select {
+  padding: var(--s-2) var(--s-3);
+  color: var(--c-text);
+  font-family: var(--f-mono);
+  font-size: var(--t-body);
+  background: var(--c-surface-2);
+  border: var(--border-strong);
+  border-radius: var(--r-2);
+  cursor: pointer;
+  appearance: none;
+  padding-right: var(--s-6);
+
+  /* Chevron drawn inline so there is no icon-font or sprite dependency. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2392a7ad' stroke-width='1.4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--s-3) center;
+  background-size: 10px 6px;
+}
+
+/* Cutoff selector: the 8 real WINDFOR publish times as a segmented control. */
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  border: var(--border-strong);
+  border-radius: var(--r-2);
+  overflow: hidden;
+  width: fit-content;
+}
+
+.chip {
+  padding: var(--s-2) var(--s-3);
+  color: var(--c-text-dim);
+  font-family: var(--f-mono);
+  font-size: var(--t-body);
+  font-variant-numeric: tabular-nums;
+  background: var(--c-surface-2);
+  border: 0;
+  border-right: var(--border);
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.chip:last-child {
+  border-right: 0;
+}
+
+.chip:hover {
+  color: var(--c-text);
+  background: var(--c-line);
+}
+
+.chip[aria-pressed='true'] {
+  color: var(--c-base);
+  font-weight: var(--w-medium);
+  background: var(--c-accent);
+}
+
+:where(.chip, .select, button, a, [tabindex]):focus-visible {
+  outline: 0;
+  box-shadow: var(--focus-ring);
+}
+
+/* ── Chart legend ────────────────────────────────────────────────────── */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legend__item {
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+  color: var(--c-text-dim);
+  font-size: var(--t-small);
+}
+
+.legend__swatch {
+  width: var(--s-4);
+  height: var(--s-1);
+  border-radius: 1px;
+  background: currentcolor;
+  flex: none;
+}
+
+.legend__swatch--actual {
+  color: var(--c-actual);
+}
+
+.legend__swatch--forecast {
+  color: var(--c-forecast);
+}
+
+.legend__swatch--band {
+  height: var(--s-3);
+  background: var(--c-band);
+  border: 1px solid var(--c-band-edge);
+}
+
+/* ── Caveat: for honest in-sample / methodology disclaimers ──────────── */
+.caveat {
+  margin: 0;
+  padding-left: var(--s-3);
+  border-left: 2px solid var(--c-forecast);
+  color: var(--c-text-dim);
+  font-size: var(--t-small);
+  line-height: var(--lh-prose);
+}
+
+/* ── Placeholder slot (scaffold only; Tasks 8/9 replace these) ───────── */
+.slot {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  min-height: 15rem;
+  padding: var(--s-5);
+  color: var(--c-text-faint);
+  font-family: var(--f-mono);
+  font-size: var(--t-small);
+  text-align: center;
+  background: repeating-linear-gradient(
+    135deg,
+    transparent 0 var(--s-2),
+    rgb(255 255 255 / 1.5%) var(--s-2) calc(var(--s-2) * 2)
+  );
+  border: 1px dashed var(--c-line-strong);
+  border-radius: var(--r-2);
+}
