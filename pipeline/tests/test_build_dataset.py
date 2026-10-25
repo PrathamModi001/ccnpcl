@@ -1,6 +1,16 @@
 """Tests for the decision-forecast selection logic in pipeline.build_dataset."""
 
-from pipeline.build_dataset import select_decision_forecast, hourly_actual
+import pytest
+
+from pipeline.build_dataset import (
+    CUTOFF_TIMES,
+    build_dataset,
+    build_day_records,
+    compute_metrics,
+    compute_risk_band,
+    hourly_actual,
+    select_decision_forecast,
+)
 from pipeline.tests import fixtures
 
 
@@ -37,3 +47,31 @@ def test_hourly_actual_averages_half_hours():
 def test_hourly_actual_handles_zero_generation():
     result = hourly_actual(fixtures.FUELHH_ZERO_HOUR, "2026-01-28T15:00:00Z")
     assert result == 0.0
+
+
+def test_build_day_records_jan1_has_full_coverage_from_lookback():
+    records = build_day_records(
+        fixtures.FUELHH_JAN, fixtures.WINDFOR_WITH_LOOKBACK, ["2026-01-01"], "11:30"
+    )
+    assert len(records) == 24
+    assert all(r["forecast"] is not None for r in records)
+
+
+def test_compute_metrics_uses_pct_of_mean_not_per_point_mape():
+    records = fixtures.RECORDS_WITH_ZERO_GENERATION_HOUR
+    metrics = compute_metrics(records)
+    assert metrics["pct_of_mean"] == pytest.approx(fixtures.EXPECTED_PCT_OF_MEAN)
+
+
+def test_compute_risk_band_buckets_by_hour_only():
+    band = compute_risk_band(fixtures.RECORDS_TWO_HOURS_MULTIPLE_DAYS)
+    assert set(band.keys()) == {
+        h for r in fixtures.RECORDS_TWO_HOURS_MULTIPLE_DAYS for h in [r["hour"]]
+    }
+
+
+def test_build_dataset_has_all_eight_cutoffs():
+    dataset = build_dataset(
+        fixtures.FUELHH_JAN, fixtures.WINDFOR_WITH_LOOKBACK, ["2026-01-01", "2026-01-02"]
+    )
+    assert set(dataset["cutoffs"].keys()) == set(CUTOFF_TIMES)

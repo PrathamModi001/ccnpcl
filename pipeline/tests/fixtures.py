@@ -107,3 +107,79 @@ FUELHH_ZERO_HOUR = [
     {"startTime": "2026-01-28T15:00:00Z", "generation": 0.0},
     {"startTime": "2026-01-28T15:30:00Z", "generation": 0.0},
 ]
+
+# --- Task 4 fixtures: build_day_records / build_dataset lookback -----
+
+# A single Dec-31 WINDFOR snapshot (published 09:30, before the
+# "11:30" D-1 cutoff used by the lookback test) that covers all 24
+# target hours of 2026-01-01. This is the lookback scenario: Jan 1's
+# decision-time forecast comes from a D-1 (Dec 31) snapshot, same as
+# any other day - there's nothing special in the selection logic, this
+# fixture just has to actually supply full 24h coverage for that one
+# publish/cutoff combination. generation = 1000.0 + hour*5.0, a plain
+# formula (not reverse-engineered from the implementation) chosen only
+# so each row has a distinct, traceable value.
+WINDFOR_WITH_LOOKBACK = [
+    {
+        "publishTime": "2025-12-31T09:30:00Z",
+        "startTime": f"2026-01-01T{hour:02d}:00:00Z",
+        "generation": 1000.0 + hour * 5.0,
+    }
+    for hour in range(24)
+]
+
+# FUELHH half-hourly actuals covering all 24 hours of 2026-01-01 and
+# 2026-01-02 (two full days, 48 half-hour rows each). Both half-hours
+# of a given hour carry the same value so hourly_actual's average is
+# just that value - generation = 500.0 + hour*10.0 for Jan 1,
+# 1500.0 + hour*10.0 for Jan 2 (offset so the two days are
+# distinguishable), both plain formulas chosen for traceability, not
+# derived from the implementation.
+FUELHH_JAN = [
+    {
+        "startTime": f"2026-01-01T{hour:02d}:{minute:02d}:00Z",
+        "generation": 500.0 + hour * 10.0,
+    }
+    for hour in range(24)
+    for minute in (0, 30)
+] + [
+    {
+        "startTime": f"2026-01-02T{hour:02d}:{minute:02d}:00Z",
+        "generation": 1500.0 + hour * 10.0,
+    }
+    for hour in range(24)
+    for minute in (0, 30)
+]
+
+# --- Task 4 fixtures: compute_metrics pct_of_mean ---------------------
+
+# Three hand-picked {date, hour, actual, forecast} records, one with a
+# genuine zero-generation actual (0.0) - this would make a per-point
+# MAPE blow up (division by zero), which is exactly why pct_of_mean
+# must be mae / mean(actuals) * 100 using one constant denominator
+# instead. Hand-computed below:
+#   mean(actuals) = (0.0 + 100.0 + 200.0) / 3 = 100.0
+#   abs errors    = |0-10|, |100-70|, |200-220| = 10.0, 30.0, 20.0
+#   mae           = (10.0 + 30.0 + 20.0) / 3 = 20.0
+#   pct_of_mean   = mae / mean(actuals) * 100 = 20.0 / 100.0 * 100 = 20.0
+RECORDS_WITH_ZERO_GENERATION_HOUR = [
+    {"date": "2026-01-01", "hour": 0, "actual": 0.0, "forecast": 10.0},
+    {"date": "2026-01-01", "hour": 1, "actual": 100.0, "forecast": 70.0},
+    {"date": "2026-01-01", "hour": 2, "actual": 200.0, "forecast": 220.0},
+]
+EXPECTED_PCT_OF_MEAN = 20.0
+
+# --- Task 4 fixtures: compute_risk_band hour-only bucketing -----------
+
+# Records spanning exactly two distinct hour-of-delivery values (5 and
+# 10) across three/two different dates respectively. Proves
+# compute_risk_band buckets by hour-of-delivery only: the resulting
+# band dict must have exactly the keys {5, 10}, regardless of how many
+# distinct dates contributed to each bucket.
+RECORDS_TWO_HOURS_MULTIPLE_DAYS = [
+    {"date": "2026-01-01", "hour": 5, "actual": 100.0, "forecast": 90.0},
+    {"date": "2026-01-02", "hour": 5, "actual": 110.0, "forecast": 100.0},
+    {"date": "2026-01-03", "hour": 5, "actual": 90.0, "forecast": 95.0},
+    {"date": "2026-01-01", "hour": 10, "actual": 200.0, "forecast": 210.0},
+    {"date": "2026-01-02", "hour": 10, "actual": 205.0, "forecast": 200.0},
+]
