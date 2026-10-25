@@ -41,6 +41,17 @@
   font-size: var(--t-small);
 }
 
+/* A caption row *inside* a panel — a second chart's name and its legend. No
+ * rule of its own: the panel head above already carries one, and a second
+ * hairline would read as a second panel. */
+.subhead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-4);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
 /* ── Labels: the one place uppercase tracking is allowed ─────────────── */
 .label-micro {
   color: var(--c-text-faint);
@@ -69,6 +80,24 @@
   border: var(--border);
   border-radius: var(--r-2);
   overflow: hidden;
+}
+
+/* Variant for the accuracy panel, which above the layout breakpoint is a side
+ * column only ~3 tiles wide: five 30px values with their MW unit overflow
+ * their tiles there, and wrapping them leaves an empty cell showing through
+ * the hairline grid. Two columns fit the type, and spanning the first tile
+ * fills the grid exactly — which also gives the one figure a desk sizes its
+ * buffer from (MAE) the hero cell. Below the breakpoint the panel is full
+ * width and the base single-row grid is already right.
+ * Breakpoint mirrors `.layout` in index.css. */
+@media (width >= 1100px) {
+  .metric-row--lead {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metric-row--lead > .metric:first-child {
+    grid-column: 1 / -1;
+  }
 }
 
 .metric {
@@ -215,6 +244,14 @@
   border: 1px solid var(--c-band-edge);
 }
 
+/* Filled dot, matching the selected day's realised-error points. */
+.legend__swatch--point {
+  width: var(--s-2);
+  height: var(--s-2);
+  color: var(--c-actual);
+  border-radius: 50%;
+}
+
 /* Hollow ring, matching the breach markers drawn on the metered line. */
 .legend__swatch--breach {
   width: var(--s-2);
@@ -243,10 +280,12 @@
   touch-action: none; /* the pointer readout owns horizontal drags */
 }
 
-/* A fetch is in flight: keep the previous day legible, just recede it, so the
- * chart never flashes empty between cutoffs. */
-.chart--busy {
+/* A fetch for a newer selection is in flight: keep the values already on
+ * screen legible, just recede them, so nothing flashes empty between cutoffs.
+ * Not chart-specific — the accuracy panel's metric tiles use it too. */
+.is-busy {
   opacity: 0.45;
+  transition: opacity 120ms ease;
 }
 
 /* ── Chart: axes and grid ─────────────────────────────────────────────── */
@@ -256,6 +295,13 @@
 }
 
 .chart__axis {
+  stroke: var(--c-line-strong);
+  stroke-width: 1;
+}
+
+/* Zero on the error chart. It is the reference the whole chart is read
+ * against, not one more value, so it carries the axis weight. */
+.chart__zero {
   stroke: var(--c-line-strong);
   stroke-width: 1;
 }
@@ -303,6 +349,12 @@
 .chart__line--forecast {
   stroke: var(--c-forecast);
   stroke-width: 1.5;
+}
+
+/* One hour's realised error on the selected day. Derived from metered output,
+ * so it takes the metered hue rather than a fifth colour. */
+.chart__point {
+  fill: var(--c-actual);
 }
 
 /* Metered output outside its own P5–P95 band: coral, the risk hue. */
@@ -416,22 +468,42 @@
   line-height: var(--lh-prose);
 }
 
-/* ── Placeholder slot (scaffold only; Tasks 8/9 replace these) ───────── */
-.slot {
+/* ── Notes: the methodology panel's prose columns ────────────────────── */
+/* Each note opens on a hairline, so four columns of unequal length still
+ * share one visible top edge and the ragged bottom reads as deliberate. */
+.notes {
   display: grid;
-  flex: 1;
-  place-items: center;
-  min-height: 15rem;
-  padding: var(--s-5);
-  color: var(--c-text-faint);
-  font-family: var(--f-mono);
+  /* A reading measure, not grid spacing: ~16rem is the narrowest a paragraph
+   * at --t-small stays comfortable, so columns fold instead of squeezing.
+   * No --s-* token applies. */
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--s-5);
+}
+
+.note {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding-top: var(--s-3);
+  border-top: var(--border);
+}
+
+/* Deliberately smaller than .panel__title: a note heads a column inside the
+ * panel, so it must not read as a peer of the panel's own title. The step up
+ * from its body text is colour and weight, not size. */
+.note__title {
+  font-size: var(--t-body);
+  font-weight: var(--w-semibold);
+}
+
+.note p {
+  color: var(--c-text-dim);
   font-size: var(--t-small);
-  text-align: center;
-  background: repeating-linear-gradient(
-    135deg,
-    transparent 0 var(--s-2),
-    rgb(255 255 255 / 1.5%) var(--s-2) calc(var(--s-2) * 2)
-  );
-  border: 1px dashed var(--c-line-strong);
-  border-radius: var(--r-2);
+}
+
+/* Emphasis in dim prose is brightness, not weight: 700 in 12px Plex Sans on
+ * this surface reads as a smudge. */
+.note strong {
+  color: var(--c-text);
+  font-weight: var(--w-medium);
 }

@@ -1,8 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 
 import type { DayHour, DayResponse } from '../api'
+import { useBoxSize } from '../hooks/useBoxSize'
 import type { BandPoint, Point } from '../lib/chart'
-import { errorTone, linePath, niceScale, ribbonPath, runsOf } from '../lib/chart'
+import {
+  HOUR_LABEL_EVERY,
+  errorTone,
+  hourAtRatio,
+  linePath,
+  niceScale,
+  ribbonPath,
+  runsOf,
+  stepHour,
+} from '../lib/chart'
 import { EM_DASH, formatMW } from '../lib/format'
 
 /**
@@ -37,9 +47,6 @@ interface DayChartProps {
  *  unit header above the topmost tick label. */
 const PAD = { top: 30, right: 16, bottom: 30, left: 60 }
 
-/** Hour labels every 3 hours keeps 8 ticks across the widest layout. */
-const HOUR_LABEL_EVERY = 3
-
 /**
  * Metered output outside its own risk band — the thing a desk wants flagged.
  *
@@ -49,26 +56,6 @@ const HOUR_LABEL_EVERY = 3
 function isBreach(hour: DayHour): hour is DayHour & { actual: number } {
   if (hour.actual === null || hour.risk_low === null || hour.risk_high === null) return false
   return hour.actual < hour.risk_low || hour.actual > hour.risk_high
-}
-
-/** Measures the element the chart is drawn into, without feeding back into it
- *  (the SVG is absolutely positioned, so it cannot influence this box). */
-function useBoxSize(ref: React.RefObject<HTMLElement | null>) {
-  const [size, setSize] = useState({ width: 0, height: 0 })
-
-  useEffect(() => {
-    const element = ref.current
-    if (!element) return
-
-    const observer = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect
-      setSize({ width: Math.round(width), height: Math.round(height) })
-    })
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [ref])
-
-  return size
 }
 
 function DayChart({ hours, busy = false }: DayChartProps) {
@@ -129,8 +116,7 @@ function DayChart({ hours, busy = false }: DayChartProps) {
 
   function hourFromPointer(event: React.PointerEvent<SVGSVGElement>) {
     const bounds = event.currentTarget.getBoundingClientRect()
-    const ratio = (event.clientX - bounds.left - PAD.left) / (plotWidth || 1)
-    return Math.min(Math.max(Math.round(ratio * lastHour), 0), lastHour)
+    return hourAtRatio((event.clientX - bounds.left - PAD.left) / plotWidth, lastHour)
   }
 
   function onKeyDown(event: React.KeyboardEvent<SVGSVGElement>) {
@@ -138,13 +124,7 @@ function DayChart({ hours, busy = false }: DayChartProps) {
 
     if (step !== 0) {
       event.preventDefault()
-      setActiveHour((current) =>
-        current === null
-          ? step > 0
-            ? 0
-            : lastHour
-          : Math.min(Math.max(current + step, 0), lastHour),
-      )
+      setActiveHour((current) => stepHour(current, step, lastHour))
     } else if (event.key === 'Home') {
       setActiveHour(0)
     } else if (event.key === 'End') {
@@ -155,7 +135,7 @@ function DayChart({ hours, busy = false }: DayChartProps) {
   }
 
   return (
-    <div className={`chart${busy ? ' chart--busy' : ''}`} ref={boxRef}>
+    <div className={`chart${busy ? ' is-busy' : ''}`} ref={boxRef}>
       {plotWidth > 0 && plotHeight > 0 && (
         <svg
           className="chart__canvas"

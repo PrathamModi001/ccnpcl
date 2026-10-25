@@ -1,21 +1,22 @@
 import { useEffect, useState } from 'react'
 
-import { ApiError, fetchDay, fetchMeta } from './api'
-import type { DayResponse, MetaResponse } from './api'
+import { ApiError, fetchAccuracy, fetchDay, fetchMeta } from './api'
+import type { AccuracyResponse, DayResponse, MetaResponse } from './api'
+import AccuracyPanel from './components/AccuracyPanel'
 import DateCutoffControls from './components/DateCutoffControls'
 import DayChart from './components/DayChart'
-import { EM_DASH, formatMW } from './lib/format'
+import HowThisWorksPanel from './components/HowThisWorksPanel'
 
 /**
  * Application shell. Owns the two pieces of state the whole page is a function
  * of — the delivery day and the decision cutoff — and the fetches they drive.
  *
- * Task 9 replaces the "Forecast accuracy" slot with
- * `components/AccuracyPanel.tsx` and the methodology panel with
- * `components/HowThisWorksPanel.tsx`.
- *
- * Keep the `.panel` / `.metric` / `.chip-row` / `.caveat` primitives when you
- * do — they are the design system, not scaffolding (see styles/theme.css).
+ * The two fetches are deliberately keyed differently. `/api/day` depends on
+ * both the date and the cutoff; `/api/accuracy` depends on the cutoff alone,
+ * because the headline error figures are month-wide by design (a single day
+ * holds one sample per hour of delivery, so a per-day MAE would be noise
+ * dressed as a statistic). Keying it on the cutoff only also means the
+ * figures demonstrably do not move when the delivery day changes.
  */
 
 /** The 8 real WINDFOR publish times (backend `data_access.CUTOFF_TIMES`).
@@ -28,28 +29,17 @@ const CUTOFFS = ['02:30', '04:30', '07:30', '09:30', '11:30', '15:30', '18:30', 
 const DEFAULT_CUTOFF = '11:30'
 
 /**
- * Headline metrics in the order a desk reads them; values arrive in Task 9.
- *
- * `unit` matters: mae/rmse/bias/p90_abs_error are MW and go through
- * `formatMW`, but the backend's `pct_of_mean` is already scaled to a
- * percentage (e.g. 17.42 means 17.4%) — do not run it through `formatMW`.
- */
-const METRICS = [
-  { key: 'mae', label: 'MAE', sub: 'mean absolute error', unit: 'MW' },
-  { key: 'rmse', label: 'RMSE', sub: 'penalises large misses', unit: 'MW' },
-  { key: 'bias', label: 'Bias', sub: 'signed, actual − forecast', unit: 'MW' },
-  { key: 'p90', label: 'P90 |error|', sub: 'buffer for 9 days in 10', unit: 'MW' },
-  { key: 'pct', label: 'Error / mean', sub: 'as % of mean output', unit: '%' },
-] as const
-
-/**
  * Turns a thrown value into something a trader can act on. A 404 means the
- * selection is outside the dataset; anything else is almost always "the
- * backend isn't up", which is the one failure a reader can fix themselves.
+ * selection is outside the dataset — `missing` says which selection, since the
+ * two endpoints are keyed differently — and anything else is almost always
+ * "the backend isn't up", the one failure a reader can fix themselves.
  */
-function describeError(error: unknown): string {
+function describeError(
+  error: unknown,
+  missing = 'No data published for that delivery day and cutoff.',
+): string {
   if (error instanceof ApiError) {
-    if (error.status === 404) return 'No data published for that delivery day and cutoff.'
+    if (error.status === 404) return missing
     return `The forecast API returned ${error.status}. Try another day, or reload.`
   }
   return 'Could not reach the forecast API. Is the backend running?'
@@ -62,6 +52,16 @@ function App() {
 
   const [day, setDay] = useState<DayResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /**
+   * Month-wide accuracy, stored with the cutoff it was fetched for.
+   * `AccuracyResponse` does not echo its cutoff back the way `DayResponse`
+   * does, so this is the only way to tell "these figures are the current
+   * selection's" from "these are the previous selection's, still arriving".
+   */
+  const [accuracy, setAccuracy] = useState<{ cutoff: string; data: AccuracyResponse } | null>(
+    null,
+  )
+  const [accuracyError, setAccuracyError] = useState<string | null>(null)
   /** `fetchMeta` failed, so no days will ever arrive. Distinct from "not yet
    *  loaded", which the controls otherwise cannot tell apart. */
   const [metaFailed, setMetaFailed] = useState(false)
@@ -72,6 +72,9 @@ function App() {
    * flag, which would mean setting state inside the fetch effect.
    */
   const stale = day !== null && (day.date !== date || day.cutoff !== cutoff)
+  /** The same derivation for the accuracy figures. Note it ignores `date`:
+   *  changing the delivery day must not even *look* like it recomputes them. */
+  const accuracyStale = accuracy !== null && accuracy.cutoff !== cutoff
 
   // Which days and cutoffs exist at all. Runs once; the dataset is static.
   useEffect(() => {
@@ -107,6 +110,7 @@ function App() {
   function selectCutoff(next: string) {
     setCutoff(next)
     setError(null)
+    setAccuracyError(null)
   }
 
   // The day view, refetched on every selection change. The previous day stays
@@ -132,6 +136,30 @@ function App() {
       cancelled = true
     }
   }, [date, cutoff])
+
+  // Month-wide accuracy for the cutoff. Not keyed on the date — see the note
+  // at the top of this file.
+  useEffect(() => {
+    if (!cutoff) return
+
+    let cancelled = false
+
+    fetchAccuracy(cutoff)
+      .then((response) => {
+        if (cancelled) return
+        setAccuracy({ cutoff, data: response })
+        setAccuracyError(null)
+      })
+      .catch((cause: unknown) => {
+        if (cancelled) return
+        setAccuracy(null)
+        setAccuracyError(describeError(cause, 'No accuracy published for that cutoff.'))
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [cutoff])
 
   return (
     <div className="app">
@@ -202,35 +230,26 @@ function App() {
               <p className="panel__note">Whole of January at the {cutoff} cutoff</p>
             </div>
 
-            <div className="metric-row">
-              {METRICS.map((metric) => (
-                <div className="metric" key={metric.key}>
-                  <span className="label-micro">{metric.label}</span>
-                  {/* formatMW renders an em dash for a missing value, so the
-                      tiles hold their shape before the fetch lands. */}
-                  <span className="metric__value">
-                    {metric.unit === 'MW' ? formatMW(Number.NaN) : EM_DASH}
-                  </span>
-                  <span className="metric__sub">{metric.sub}</span>
-                </div>
-              ))}
-            </div>
-
-            <div className="slot">Error by hour of delivery renders here (Task 9)</div>
+            {accuracyError !== null ? (
+              <p className="chart-state chart-state--error" role="alert">
+                {accuracyError}
+              </p>
+            ) : accuracy === null ? (
+              <p className="chart-state">Loading the month’s accuracy…</p>
+            ) : (
+              <AccuracyPanel
+                accuracy={accuracy.data}
+                /* The day already fetched for the chart on the left — the
+                   panel overlays its realised errors rather than fetching the
+                   same day again. */
+                overlayDay={day ?? undefined}
+                busy={accuracyStale}
+              />
+            )}
           </section>
         </div>
 
-        <section className="panel">
-          <div className="panel__head">
-            <h2 className="panel__title">How this works</h2>
-            <p className="panel__note">Methodology and its limits (Task 9)</p>
-          </div>
-          <p className="caveat">
-            The risk band is the empirical 5th–95th percentile of (metered − forecast) for the
-            same hour of delivery across 31 days of January 2026, in-sample. It is illustrative
-            of forecast risk, not a calibrated probabilistic model.
-          </p>
-        </section>
+        <HowThisWorksPanel />
       </main>
 
       <footer className="app__footer">

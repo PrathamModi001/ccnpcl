@@ -1,6 +1,17 @@
 import { expect, test } from 'vitest'
 
-import { errorTone, linePath, niceScale, ribbonPath, runsOf } from './chart'
+import {
+  errorScale,
+  errorTone,
+  hourAtRatio,
+  linePath,
+  niceScale,
+  overlayErrors,
+  ribbonPath,
+  runsOf,
+  signedTone,
+  stepHour,
+} from './chart'
 
 /* ── niceScale ──────────────────────────────────────────────────────── */
 
@@ -147,6 +158,176 @@ test('ribbonPath traces the high edge then returns along the low edge', () => {
       { x: 5, low: 80, high: 20 },
     ]),
   ).toBe('M0 10 L5 20 L5 80 L0 90 Z')
+})
+
+/* ── hourAtRatio / stepHour (shared pointer + keyboard addressing) ──── */
+
+test('hourAtRatio snaps to the nearest hour of delivery', () => {
+  expect(hourAtRatio(0, 23)).toBe(0)
+  expect(hourAtRatio(1, 23)).toBe(23)
+  expect(hourAtRatio(0.5, 23)).toBe(12) // 11.5 rounds up
+})
+
+test('hourAtRatio clamps a pointer in the axis gutters to the plotted range', () => {
+  expect(hourAtRatio(-0.4, 23)).toBe(0)
+  expect(hourAtRatio(1.4, 23)).toBe(23)
+})
+
+test('hourAtRatio survives a zero-width plot', () => {
+  // The first paint, before the ResizeObserver has measured the box.
+  expect(hourAtRatio(Number.POSITIVE_INFINITY, 23)).toBe(0)
+  expect(hourAtRatio(Number.NaN, 23)).toBe(0)
+})
+
+test('stepHour enters from the near end when nothing is selected yet', () => {
+  expect(stepHour(null, 1, 23)).toBe(0)
+  expect(stepHour(null, -1, 23)).toBe(23)
+})
+
+test('stepHour steps one hour at a time and stops at the ends', () => {
+  expect(stepHour(5, 1, 23)).toBe(6)
+  expect(stepHour(5, -1, 23)).toBe(4)
+  expect(stepHour(0, -1, 23)).toBe(0)
+  expect(stepHour(23, 1, 23)).toBe(23)
+})
+
+/* ── errorScale ─────────────────────────────────────────────────────── */
+
+test('errorScale keeps zero inside the domain even when every error is negative', () => {
+  // January over-forecasts at every hour, so the bias series never crosses
+  // zero — but the zero reference still has to be on the chart.
+  const scale = errorScale([-6861, -2357])
+
+  expect(scale.low).toBeLessThan(-6861)
+  expect(scale.high).toBeGreaterThan(0)
+})
+
+test('errorScale does not round out to the next whole step', () => {
+  // The panel is short and this month's errors sit heavily below zero.
+  // Rounding the top out to the next 2,500 MW step (as the generation axis
+  // does) would spend a third of the plot height on empty axis.
+  const scale = errorScale([-6861, 2423])
+
+  // niceScale would have rounded the top out to 5,000 MW. This stays just
+  // above the data on both sides.
+  expect(scale.high).toBeGreaterThan(2423)
+  expect(scale.high).toBeLessThan(3000)
+  expect(scale.low).toBeLessThan(-6861)
+  expect(scale.low).toBeGreaterThan(-7500)
+})
+
+test('errorScale always labels zero — it is the reference, not a value', () => {
+  expect(errorScale([-6861, 3652]).ticks).toContain(0)
+  expect(errorScale([120, 300]).ticks).toContain(0)
+})
+
+test('errorScale brackets the widest error in either direction', () => {
+  const scale = errorScale([-6861, 3652])
+
+  expect(scale.low).toBeLessThan(-6861)
+  expect(scale.high).toBeGreaterThan(3652)
+})
+
+test('errorScale keeps ticks on whole steps, evenly spaced, inside the domain', () => {
+  const { low, high, ticks } = errorScale([-6861, 3652])
+  const gaps = ticks.slice(1).map((tick, i) => tick - ticks[i])
+
+  expect(new Set(gaps).size).toBe(1)
+  expect(ticks.every((tick) => Number.isInteger(tick))).toBe(true)
+  for (const tick of ticks) {
+    expect(tick).toBeGreaterThanOrEqual(low)
+    expect(tick).toBeLessThanOrEqual(high)
+  }
+})
+
+test('errorScale never labels a tick "-0"', () => {
+  for (const tick of errorScale([-6861, 3652]).ticks) {
+    expect(Object.is(tick, -0)).toBe(false)
+  }
+})
+
+test('errorScale falls back to a neutral axis with no finite data', () => {
+  // A cutoff whose by_hour array is empty, or a day with no overlaid errors.
+  expect(errorScale([])).toEqual({ low: -1000, high: 1000, ticks: [-1000, -500, 0, 500, 1000] })
+  expect(errorScale([Number.NaN, Number.POSITIVE_INFINITY])).toEqual({
+    low: -1000,
+    high: 1000,
+    ticks: [-1000, -500, 0, 500, 1000],
+  })
+})
+
+test('errorScale does not collapse on an all-zero series', () => {
+  const scale = errorScale([0, 0])
+
+  expect(scale.high).toBeGreaterThan(0)
+  expect(scale.low).toBeLessThan(0)
+  expect(scale.ticks.length).toBeGreaterThan(1)
+})
+
+test('errorScale still produces a readable axis beyond the step ladder', () => {
+  const scale = errorScale([-5_000_000, 5_000_000])
+
+  expect(scale.high).toBeGreaterThanOrEqual(5_000_000)
+  // A derived step, not the coarsest rung repeated — which would be 500 ticks.
+  expect(scale.ticks.length).toBeGreaterThan(1)
+  expect(scale.ticks.length).toBeLessThan(12)
+  expect(scale.ticks.every((tick) => Number.isInteger(tick))).toBe(true)
+})
+
+/* ── overlayErrors ──────────────────────────────────────────────────── */
+
+const hour = (h: number, actual: number | null, forecast: number | null) => ({
+  hour: h,
+  actual,
+  forecast,
+  risk_low: null,
+  risk_high: null,
+})
+
+test('overlayErrors computes the signed metered − forecast error per hour', () => {
+  expect(overlayErrors([hour(0, 16_000, 19_000), hour(1, 9_000, 8_000)])).toEqual([
+    { hour: 0, error: -3000 },
+    { hour: 1, error: 1000 },
+  ])
+})
+
+test('overlayErrors drops an hour with no metered value rather than treating it as zero', () => {
+  // The alternative would plot a fictitious -19,000 MW error.
+  expect(overlayErrors([hour(0, null, 19_000), hour(1, 9_000, 8_000)])).toEqual([
+    { hour: 1, error: 1000 },
+  ])
+})
+
+test('overlayErrors drops an hour with no decision forecast', () => {
+  expect(overlayErrors([hour(0, 16_000, null)])).toEqual([])
+})
+
+test('overlayErrors keeps the hour of delivery, not the array index', () => {
+  // A short or non-contiguous day must still land each point at its true hour.
+  expect(overlayErrors([hour(22, 1000, 900), hour(23, 1000, 1100)])).toEqual([
+    { hour: 22, error: 100 },
+    { hour: 23, error: -100 },
+  ])
+})
+
+test('overlayErrors returns nothing for an empty day', () => {
+  expect(overlayErrors([])).toEqual([])
+})
+
+/* ── signedTone ─────────────────────────────────────────────────────── */
+
+test('signedTone marks a positive error as short (metered beat the forecast)', () => {
+  expect(signedTone(1200)).toBe('value--under')
+})
+
+test('signedTone marks a negative error as long (the forecast ran high)', () => {
+  expect(signedTone(-1806.23)).toBe('value--over')
+})
+
+test('signedTone leaves zero, negative zero and a missing value neutral', () => {
+  expect(signedTone(0)).toBe('')
+  expect(signedTone(-0)).toBe('')
+  expect(signedTone(null)).toBe('')
 })
 
 /* ── errorTone ──────────────────────────────────────────────────────── */
