@@ -37,9 +37,14 @@
   --c-line-strong: #2a454d;
 
   /* ── Text ─────────────────────────────────────────────────────────── */
-  --c-text: #e4ecee;
-  --c-text-dim: #92a7ad;
-  --c-text-faint: #5f757c;
+  /* All three clear WCAG AA (4.5:1) for normal-size text against every
+   * surface below — --c-text-faint is the binding case at 4.67:1 on
+   * --c-surface-2. It carries .label-micro at 11px, so don't darken it;
+   * if you need a quieter tone, reach for a lighter weight, not less
+   * contrast. Re-check any change against all three surfaces. */
+  --c-text: #e4ecee; /* 16.1 / 14.8 / 13.3 : base / surface / surface-2 */
+  --c-text-dim: #92a7ad; /*  7.7 /  7.0 /  6.3 */
+  --c-text-faint: #778f97; /*  5.7 /  5.2 /  4.7 */
 
   /* ── Data hues (four, each with exactly one job) ──────────────────── */
   --c-actual: #ece6d8; /* metered output — FUELHH ground truth */
