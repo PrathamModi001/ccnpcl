@@ -1,14 +1,16 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
-import { EM_DASH, formatDate, formatMW } from './lib/format'
+import { ApiError, fetchDay, fetchMeta } from './api'
+import type { DayResponse, MetaResponse } from './api'
+import DateCutoffControls from './components/DateCutoffControls'
+import DayChart from './components/DayChart'
+import { EM_DASH, formatMW } from './lib/format'
 
 /**
- * Scaffold shell (Task 7). The layout, controls strip, metric row and panel
- * slots below are the real chrome; the data is not wired up yet.
+ * Application shell. Owns the two pieces of state the whole page is a function
+ * of — the delivery day and the decision cutoff — and the fetches they drive.
  *
- * Task 8 replaces the controls strip with `components/DateCutoffControls.tsx`
- * (driven by `fetchMeta`) and the "Forecast vs. metered output" slot with
- * `components/DayChart.tsx`. Task 9 replaces the "Forecast accuracy" slot with
+ * Task 9 replaces the "Forecast accuracy" slot with
  * `components/AccuracyPanel.tsx` and the methodology panel with
  * `components/HowThisWorksPanel.tsx`.
  *
@@ -16,15 +18,14 @@ import { EM_DASH, formatDate, formatMW } from './lib/format'
  * do — they are the design system, not scaffolding (see styles/theme.css).
  */
 
-/** The 8 real WINDFOR publish times (backend `data_access.CUTOFF_TIMES`). */
+/** The 8 real WINDFOR publish times (backend `data_access.CUTOFF_TIMES`).
+ *  Used only until `fetchMeta` confirms them, so the control strip renders at
+ *  its final width on the first paint. */
 const CUTOFFS = ['02:30', '04:30', '07:30', '09:30', '11:30', '15:30', '18:30', '22:30']
 
-/** Placeholder only — Task 8 populates this from `fetchMeta().dates`, which
- *  returns all 31 days of January 2026 (verified against the running API). */
-const SCAFFOLD_DATES = Array.from(
-  { length: 31 },
-  (_, i) => `2026-01-${String(i + 1).padStart(2, '0')}`,
-)
+/** The cutoff a desk defaults to: late enough to be a real D−1 decision point,
+ *  early enough to still be tradeable. */
+const DEFAULT_CUTOFF = '11:30'
 
 /**
  * Headline metrics in the order a desk reads them; values arrive in Task 9.
@@ -41,9 +42,92 @@ const METRICS = [
   { key: 'pct', label: 'Error / mean', sub: 'as % of mean output', unit: '%' },
 ] as const
 
+/**
+ * Turns a thrown value into something a trader can act on. A 404 means the
+ * selection is outside the dataset; anything else is almost always "the
+ * backend isn't up", which is the one failure a reader can fix themselves.
+ */
+function describeError(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 404) return 'No data published for that delivery day and cutoff.'
+    return `The forecast API returned ${error.status}. Try another day, or reload.`
+  }
+  return 'Could not reach the forecast API. Is the backend running?'
+}
+
 function App() {
-  const [date, setDate] = useState(SCAFFOLD_DATES[3])
-  const [cutoff, setCutoff] = useState('11:30')
+  const [meta, setMeta] = useState<MetaResponse | null>(null)
+  const [date, setDate] = useState('')
+  const [cutoff, setCutoff] = useState(DEFAULT_CUTOFF)
+
+  const [day, setDay] = useState<DayResponse | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  /**
+   * Whether the day on screen is for the current selection. Derived from the
+   * date/cutoff the response echoes back rather than tracked as a `loading`
+   * flag, which would mean setting state inside the fetch effect.
+   */
+  const stale = day !== null && (day.date !== date || day.cutoff !== cutoff)
+
+  // Which days and cutoffs exist at all. Runs once; the dataset is static.
+  useEffect(() => {
+    let cancelled = false
+
+    fetchMeta()
+      .then((response) => {
+        if (cancelled) return
+        setMeta(response)
+        setDate(response.dates[0] ?? '')
+        // Honour the default cutoff only if the backend actually publishes it.
+        if (!response.cutoffs.includes(DEFAULT_CUTOFF)) {
+          setCutoff(response.cutoffs[0] ?? DEFAULT_CUTOFF)
+        }
+      })
+      .catch((cause: unknown) => {
+        if (cancelled) return
+        setError(describeError(cause))
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  /** Selection changes retire any previous failure before the refetch. */
+  function selectDate(next: string) {
+    setDate(next)
+    setError(null)
+  }
+
+  function selectCutoff(next: string) {
+    setCutoff(next)
+    setError(null)
+  }
+
+  // The day view, refetched on every selection change. The previous day stays
+  // on screen (dimmed) while the next one loads, so the chart never blanks.
+  useEffect(() => {
+    if (!date || !cutoff) return
+
+    let cancelled = false
+
+    fetchDay(date, cutoff)
+      .then((response) => {
+        if (cancelled) return
+        setDay(response)
+        setError(null)
+      })
+      .catch((cause: unknown) => {
+        if (cancelled) return
+        setDay(null)
+        setError(describeError(cause))
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [date, cutoff])
 
   return (
     <div className="app">
@@ -63,49 +147,14 @@ function App() {
       </header>
 
       <main className="app__main">
-        <section className="controls" aria-label="Delivery day and decision cutoff">
-          <div className="field">
-            <label className="label-micro" htmlFor="date">
-              Delivery day
-            </label>
-            <select
-              className="select"
-              id="date"
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-            >
-              {SCAFFOLD_DATES.map((option) => (
-                <option key={option} value={option}>
-                  {formatDate(option)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="field">
-            <span className="label-micro" id="cutoff-label">
-              Decision cutoff (D−1, UTC)
-            </span>
-            <div className="chip-row" role="group" aria-labelledby="cutoff-label">
-              {CUTOFFS.map((option) => (
-                <button
-                  key={option}
-                  className="chip"
-                  type="button"
-                  aria-pressed={option === cutoff}
-                  onClick={() => setCutoff(option)}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <p className="panel__note">
-            Showing {formatDate(date)} as decided at {cutoff} the day before. Only the 8 real
-            WINDFOR publish times are selectable — there is no forecast to choose between them.
-          </p>
-        </section>
+        <DateCutoffControls
+          dates={meta?.dates ?? []}
+          cutoffs={meta?.cutoffs ?? CUTOFFS}
+          selectedDate={date}
+          selectedCutoff={cutoff}
+          onDateChange={selectDate}
+          onCutoffChange={selectCutoff}
+        />
 
         <div className="layout">
           <section className="panel">
@@ -124,9 +173,22 @@ function App() {
                   <span className="legend__swatch legend__swatch--band" />
                   P5–P95 risk band
                 </li>
+                <li className="legend__item">
+                  <span className="legend__swatch legend__swatch--breach" />
+                  Outside band
+                </li>
               </ul>
             </div>
-            <div className="slot">Day chart renders here (Task 8)</div>
+
+            {error !== null ? (
+              <p className="chart-state chart-state--error" role="alert">
+                {error}
+              </p>
+            ) : day === null ? (
+              <p className="chart-state">Loading the delivery day…</p>
+            ) : (
+              <DayChart hours={day.hours} busy={stale} />
+            )}
           </section>
 
           <section className="panel">

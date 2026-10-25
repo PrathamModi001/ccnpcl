@@ -215,6 +215,193 @@
   border: 1px solid var(--c-band-edge);
 }
 
+/* Hollow ring, matching the breach markers drawn on the metered line. */
+.legend__swatch--breach {
+  width: var(--s-2);
+  height: var(--s-2);
+  background: none;
+  border: 1.5px solid var(--c-alert);
+  border-radius: 50%;
+}
+
+/* ── Chart: the SVG frame shared by every plot in the app ────────────── */
+/* The canvas is absolutely positioned so its size can be *derived* from this
+ * box (ResizeObserver) without feeding back into the box's own layout. */
+.chart {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 15rem;
+  transition: opacity 120ms ease;
+}
+
+.chart__canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  touch-action: none; /* the pointer readout owns horizontal drags */
+}
+
+/* A fetch is in flight: keep the previous day legible, just recede it, so the
+ * chart never flashes empty between cutoffs. */
+.chart--busy {
+  opacity: 0.45;
+}
+
+/* ── Chart: axes and grid ─────────────────────────────────────────────── */
+.chart__grid {
+  stroke: var(--c-line);
+  stroke-width: 1;
+}
+
+.chart__axis {
+  stroke: var(--c-line-strong);
+  stroke-width: 1;
+}
+
+.chart__tick {
+  fill: var(--c-text-faint);
+  font-family: var(--f-mono);
+  font-size: var(--t-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart__unit {
+  fill: var(--c-text-faint);
+  font-family: var(--f-mono);
+  font-size: var(--t-micro);
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+}
+
+/* ── Chart: the risk band ─────────────────────────────────────────────── */
+.chart__band {
+  fill: var(--c-band);
+}
+
+.chart__band-edge {
+  fill: none;
+  stroke: var(--c-band-edge);
+  stroke-width: 1;
+}
+
+/* ── Chart: data lines ────────────────────────────────────────────────── */
+/* Metered output is drawn a touch heavier than the forecast: it is the one
+ * series that is not an estimate, and it reads as the figure to trust. */
+.chart__line {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chart__line--actual {
+  stroke: var(--c-actual);
+  stroke-width: 2;
+}
+
+.chart__line--forecast {
+  stroke: var(--c-forecast);
+  stroke-width: 1.5;
+}
+
+/* Metered output outside its own P5–P95 band: coral, the risk hue. */
+.chart__breach {
+  fill: var(--c-surface);
+  stroke: var(--c-alert);
+  stroke-width: 1.5;
+}
+
+/* ── Chart: hover / keyboard crosshair ───────────────────────────────── */
+.chart__crosshair {
+  stroke: var(--c-accent);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+.chart__dot--actual {
+  fill: var(--c-actual);
+}
+
+.chart__dot--forecast {
+  fill: var(--c-forecast);
+}
+
+/* ── Chart: single-hour readout ──────────────────────────────────────── */
+.readout {
+  position: absolute;
+  top: var(--s-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 13rem;
+  padding: var(--s-3);
+  background: var(--c-surface-2);
+  border: var(--border-strong);
+  border-radius: var(--r-2);
+  pointer-events: none; /* never steals the pointer from the plot below */
+}
+
+.readout--right {
+  right: var(--s-2);
+}
+
+.readout--left {
+  left: calc(var(--s-7) + var(--s-2)); /* clear of the MW axis labels */
+}
+
+.readout__hour {
+  padding-bottom: var(--s-2);
+  border-bottom: var(--border);
+  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.readout__rows {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--s-1) var(--s-4);
+  align-items: baseline;
+}
+
+.readout__label {
+  color: var(--c-text-dim);
+  font-size: var(--t-small);
+}
+
+.readout__value {
+  font-family: var(--f-mono);
+  font-size: var(--t-small);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.readout__flag {
+  color: var(--c-alert);
+  font-size: var(--t-micro);
+  line-height: var(--lh-data);
+}
+
+/* ── Chart: loading / empty / failed, in the chart's own footprint ───── */
+.chart-state {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  min-height: 15rem;
+  padding: var(--s-5);
+  color: var(--c-text-faint);
+  font-family: var(--f-mono);
+  font-size: var(--t-small);
+  text-align: center;
+  border: var(--border);
+  border-radius: var(--r-2);
+}
+
+.chart-state--error {
+  color: var(--c-alert);
+  border-color: var(--c-alert);
+}
+
 /* ── Caveat: for honest in-sample / methodology disclaimers ──────────── */
 .caveat {
   margin: 0;
