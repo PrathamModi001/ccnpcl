@@ -103,4 +103,8 @@
   --max-w: 90rem; /* 1440px */
   --panel-pad: var(--s-5);
   --grid-gap: var(--s-4);
+
+  /* Floor for a panel's main content area (a chart, or the message standing
+   * in for one), so panels keep a comparable height before data arrives. */
+  --h-content-min: 15rem;
 }

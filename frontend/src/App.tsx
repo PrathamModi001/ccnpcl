@@ -62,6 +62,9 @@ function App() {
 
   const [day, setDay] = useState<DayResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /** `fetchMeta` failed, so no days will ever arrive. Distinct from "not yet
+   *  loaded", which the controls otherwise cannot tell apart. */
+  const [metaFailed, setMetaFailed] = useState(false)
 
   /**
    * Whether the day on screen is for the current selection. Derived from the
@@ -87,6 +90,7 @@ function App() {
       .catch((cause: unknown) => {
         if (cancelled) return
         setError(describeError(cause))
+        setMetaFailed(true)
       })
 
     return () => {
@@ -154,6 +158,7 @@ function App() {
           selectedCutoff={cutoff}
           onDateChange={selectDate}
           onCutoffChange={selectCutoff}
+          unavailable={metaFailed}
         />
 
         <div className="layout">

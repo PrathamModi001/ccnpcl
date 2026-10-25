@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { DayHour, DayResponse } from '../api'
+import type { BandPoint, Point } from '../lib/chart'
+import { errorTone, linePath, niceScale, ribbonPath, runsOf } from '../lib/chart'
 import { EM_DASH, formatMW } from '../lib/format'
 
 /**
@@ -20,7 +22,9 @@ import { EM_DASH, formatMW } from '../lib/format'
  *  3. Null handling. The brief wants missing hours skipped, not zeroed. Here a
  *     gap is simply a new path segment.
  *
- * Reads as ~200 lines of scale + path maths with no runtime dependency.
+ * The scale, path and sign-semantics maths lives in lib/chart.ts so it can be
+ * asserted on directly (lib/chart.test.ts); this file is projection,
+ * interaction and markup.
  */
 
 interface DayChartProps {
@@ -33,91 +37,16 @@ interface DayChartProps {
  *  unit header above the topmost tick label. */
 const PAD = { top: 30, right: 16, bottom: 30, left: 60 }
 
-/** Axis steps in MW. First one that yields <= TARGET_TICKS intervals wins. */
-const TICK_STEPS = [250, 500, 1000, 2000, 2500, 5000, 10_000, 20_000]
-const TARGET_TICKS = 5
-
 /** Hour labels every 3 hours keeps 8 ticks across the widest layout. */
 const HOUR_LABEL_EVERY = 3
 
-interface Point {
-  x: number
-  y: number
-}
-
-interface BandPoint {
-  x: number
-  low: number
-  high: number
-}
-
-/** A y-axis domain rounded out to whole MW steps, plus its tick values. */
-function niceScale(min: number, max: number) {
-  if (!Number.isFinite(min) || !Number.isFinite(max)) {
-    return { low: 0, high: 1000, ticks: [0, 500, 1000] }
-  }
-
-  // Breathing room so the lines never sit exactly on the frame.
-  const pad = (max - min) * 0.05 || Math.max(Math.abs(max) * 0.05, 100)
-  const step = TICK_STEPS.find((candidate) => (max + pad - (min - pad)) / candidate <= TARGET_TICKS)
-  const chosen = step ?? TICK_STEPS[TICK_STEPS.length - 1]
-
-  const high = Math.ceil((max + pad) / chosen) * chosen
-
-  // Generation cannot be negative, so padding must never invent negative
-  // headroom. The band's lower edge *can* genuinely dip below zero (the
-  // backend's risk_low is an unclamped forecast + error percentile), and
-  // clipping that would misrepresent the band — so the floor follows the data
-  // down, but is not rounded out to the next tick. A single hour at -9 MW
-  // should not buy a labelled -2,500 MW gridline.
-  const low = min >= 0 ? Math.max(Math.floor((min - pad) / chosen) * chosen, 0) : min - pad
-
-  // Ticks are always whole steps, so the lowest one can float above the floor.
-  // `value === 0` is also true for -0, which would otherwise label itself "-0"
-  // (the same trap lib/format.ts guards against).
-  const ticks: number[] = []
-  for (let value = Math.ceil(low / chosen) * chosen; value <= high + chosen / 2; value += chosen) {
-    ticks.push(value === 0 ? 0 : value)
-  }
-
-  return { low, high, ticks }
-}
-
-/** Splits a sparse series into the runs of consecutive present points. */
-function runsOf<T>(points: (T | null)[]): T[][] {
-  const runs: T[][] = []
-  let current: T[] = []
-
-  for (const point of points) {
-    if (point) {
-      current.push(point)
-    } else if (current.length > 0) {
-      runs.push(current)
-      current = []
-    }
-  }
-  if (current.length > 0) runs.push(current)
-
-  return runs
-}
-
-function linePath(points: Point[]): string {
-  return points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x} ${p.y}`).join(' ')
-}
-
-/** Closed ribbon: out along the P95 edge, back along the P5 edge. */
-function ribbonPath(points: BandPoint[]): string {
-  const top = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x} ${p.high}`).join(' ')
-  const bottom = points
-    .slice()
-    .reverse()
-    .map((p) => `L${p.x} ${p.low}`)
-    .join(' ')
-  return `${top} ${bottom} Z`
-}
-
-/** Metered output outside its own risk band — the thing a desk wants flagged. */
-function isBreach(hour: DayHour): boolean {
+/**
+ * Metered output outside its own risk band — the thing a desk wants flagged.
+ *
+ * Narrows `actual` so callers can plot a breach without asserting past the
+ * type system.
+ */
+function isBreach(hour: DayHour): hour is DayHour & { actual: number } {
   if (hour.actual === null || hour.risk_low === null || hour.risk_high === null) return false
   return hour.actual < hour.risk_low || hour.actual > hour.risk_high
 }
@@ -313,7 +242,7 @@ function DayChart({ hours, busy = false }: DayChartProps) {
               className="chart__breach"
               key={`breach-${hour.hour}`}
               cx={geometry.x(hour.hour)}
-              cy={geometry.y(hour.actual as number)}
+              cy={geometry.y(hour.actual)}
               r={3.5}
             />
           ))}
@@ -391,15 +320,7 @@ function DayChart({ hours, busy = false }: DayChartProps) {
             </span>
 
             <span className="readout__label">Metered − forecast</span>
-            <span
-              className={`readout__value ${
-                active.actual === null || active.forecast === null
-                  ? ''
-                  : active.actual >= active.forecast
-                    ? 'value--under'
-                    : 'value--over'
-              }`}
-            >
+            <span className={`readout__value ${errorTone(active.actual, active.forecast)}`}>
               {active.actual === null || active.forecast === null
                 ? EM_DASH
                 : formatMW(active.actual - active.forecast)}

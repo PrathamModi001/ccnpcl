@@ -20,6 +20,8 @@ interface DateCutoffControlsProps {
   selectedCutoff: string
   onDateChange: (date: string) => void
   onCutoffChange: (cutoff: string) => void
+  /** `fetchMeta` failed — there are no days to offer, and none are coming. */
+  unavailable?: boolean
 }
 
 function DateCutoffControls({
@@ -29,10 +31,14 @@ function DateCutoffControls({
   selectedCutoff,
   onDateChange,
   onCutoffChange,
+  unavailable = false,
 }: DateCutoffControlsProps) {
   // Before `fetchMeta` lands there is nothing to choose from; keep the strip's
-  // shape (so the page doesn't jump) but make the empty state explicit.
-  const pending = dates.length === 0
+  // shape (so the page doesn't jump) but make the empty state explicit. If the
+  // fetch failed, say so rather than claiming to still be loading — the chart
+  // panel is already reporting the error, and the two must not disagree.
+  const empty = dates.length === 0
+  const pending = empty && !unavailable
 
   return (
     <section className="controls" aria-label="Delivery day and decision cutoff">
@@ -44,11 +50,11 @@ function DateCutoffControls({
           className="select"
           id="date"
           value={selectedDate}
-          disabled={pending}
+          disabled={empty}
           onChange={(event) => onDateChange(event.target.value)}
         >
-          {pending ? (
-            <option value="">Loading…</option>
+          {empty ? (
+            <option value="">{pending ? 'Loading…' : 'Unavailable'}</option>
           ) : (
             dates.map((option) => (
               <option key={option} value={option}>
@@ -85,8 +91,10 @@ function DateCutoffControls({
             Only the 8 real WINDFOR publish times are selectable — there is no forecast to
             choose between them.
           </>
-        ) : (
+        ) : pending ? (
           'Loading the available delivery days…'
+        ) : (
+          'Delivery days could not be loaded — see the error below.'
         )}
       </p>
     </section>

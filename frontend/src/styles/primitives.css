@@ -220,7 +220,8 @@
   width: var(--s-2);
   height: var(--s-2);
   background: none;
-  border: 1.5px solid var(--c-alert);
+  /* 1px hairline, as on .legend__swatch--band. */
+  border: 1px solid var(--c-alert);
   border-radius: 50%;
 }
 
@@ -231,7 +232,7 @@
   position: relative;
   display: flex;
   flex: 1;
-  min-height: 15rem;
+  min-height: var(--h-content-min);
   transition: opacity 120ms ease;
 }
 
@@ -333,6 +334,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
+  /* A content-fit floor, not grid spacing: it is the width the widest row
+   * ("Decision forecast" + a 6-digit MW value) needs, and it stops the box
+   * resizing as you sweep across hours. No --s-* token applies. */
   min-width: 13rem;
   padding: var(--s-3);
   background: var(--c-surface-2);
@@ -387,7 +391,7 @@
   display: grid;
   flex: 1;
   place-items: center;
-  min-height: 15rem;
+  min-height: var(--h-content-min);
   padding: var(--s-5);
   color: var(--c-text-faint);
   font-family: var(--f-mono);
