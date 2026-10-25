@@ -65,6 +65,33 @@ WINDFOR_OFF_GRID = [
 ]
 EXPECTED_OFF_GRID_VALUE = 2250.0
 
+# Target hour 2026-01-20T09:00:00Z with a cutoff AFTER the target hour
+# (2026-01-20T11:00:00Z), unlike WINDFOR_WITH_LEAK above where the
+# cutoff predates the target hour. There, the leaked row's publishTime
+# is automatically excluded by the cutoff clause alone (publishTime >
+# cutoff), so the leak clause (publishTime <= startTime) never gets
+# independently exercised - deleting it wouldn't make that test fail.
+# Here the leaked row's publishTime (09:15) is <= cutoff (11:00) but
+# still > startTime (09:00), so only the leak clause excludes it; it
+# would otherwise be the max-publishTime (and therefore winning)
+# candidate. This isolates the leak clause from the cutoff clause.
+WINDFOR_LEAK_WITHIN_CUTOFF = [
+    {
+        "publishTime": "2026-01-20T07:30:00Z",
+        "startTime": "2026-01-20T09:00:00Z",
+        "generation": 800.0,
+    },
+    {
+        # Leaked (publishTime > startTime) but still <= cutoff, and its
+        # publishTime is later than the valid row's above - without the
+        # leak clause this would be the winning candidate.
+        "publishTime": "2026-01-20T09:15:00Z",
+        "startTime": "2026-01-20T09:00:00Z",
+        "generation": 9999.0,
+    },
+]
+EXPECTED_LEAK_WITHIN_CUTOFF_VALUE = 800.0
+
 # --- FUELHH fixtures --------------------------------------------------
 
 # A normal hour: two half-hour settlement periods that should average.
