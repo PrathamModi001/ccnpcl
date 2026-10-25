@@ -61,11 +61,12 @@ def get_day(date: str, cutoff: str) -> dict | None:
         forecast = entry["forecast"]
         actual = entry["actual"]
 
-        if forecast is None:
+        band = None if forecast is None else risk_band.get(str(hour))
+
+        if band is None:
             risk_low = None
             risk_high = None
         else:
-            band = risk_band[str(hour)]
             risk_low = forecast + band[0]
             risk_high = forecast + band[1]
 
