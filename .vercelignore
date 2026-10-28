@@ -1,0 +1,6 @@
+pipeline/raw/**
+.superpowers/**
+.pytest_cache/**
+backend/.venv/**
+pipeline/.venv/**
+frontend/node_modules/**

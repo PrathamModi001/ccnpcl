@@ -11,11 +11,19 @@ January 2026 is pre-fetched once and shipped as a static artifact. See
 [`docs/technical-overview.md`](docs/technical-overview.md) for the full design rationale and the
 market-mechanics findings that drove it.
 
-**Live app:** not yet deployed — see [Deployment](#deployment) below.
+**Live app:** [https://ccnpcl.vercel.app](https://ccnpcl.vercel.app)
 
 ## Directory layout
 
 ```
+api/                         Vercel Serverless Function entrypoint
+  index.py                     Imports and mounts FastAPI backend app
+
+public/                      Compiled frontend static assets served by Vercel
+  assets/                      JavaScript bundle, CSS, and web fonts
+  index.html                   SPA HTML entrypoint
+  favicon.svg                  Favicon
+
 pipeline/                   One-off Python data pipeline (not part of the running app)
   fetch_elexon.py             Pulls FUELHH + WINDFOR from the Elexon API, writes pipeline/raw/*.json
   build_dataset.py            Decision-forecast selection, accuracy metrics, risk bands, dataset
@@ -56,6 +64,8 @@ docs/
   superpowers/                 Original design spec and task-by-task implementation plan
 
 docker-compose.yml           Runs backend + frontend locally for development/review
+requirements.txt             Python requirements for Vercel deployment
+vercel.json                  Vercel serverless functions and routing configuration
 README.md                    This file
 ```
 
@@ -75,14 +85,13 @@ not need an Elexon API call or the pipeline to just run the app.
 
 ## Deployment
 
-Designed to deploy as two independent zero-config Vercel projects from this one repo:
+The application is deployed on **Vercel** at **[https://ccnpcl.vercel.app](https://ccnpcl.vercel.app)**.
 
-- **Backend** — root directory `backend`, Vercel's Python/FastAPI detection, no `vercel.json` needed.
-- **Frontend** — root directory `frontend`, Vercel's Vite detection, with `VITE_API_BASE` set to the
-  backend's deployed URL.
-
-This has not been done yet for this submission. Docker Compose above is the verified way to run the
-full stack today.
+- **Unified Architecture (`vercel.json`):**
+  - Routes matching `/api/*` invoke the Python Serverless Function in `api/index.py` which mounts the FastAPI backend application.
+  - All non-API routes serve the pre-built React (Vite + TypeScript) single-page application in `public/`.
+  - The Python serverless bundle packages the precomputed January 2026 dataset artifact (`backend/app/data/dataset.json`), providing deterministic, sub-50ms responses with zero external dependencies or live API quota limits at runtime.
+  - The deployment is verified publicly accessible in incognito mode with CORS support enabled.
 
 ## AI tool disclosure
 

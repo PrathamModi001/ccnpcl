@@ -29,10 +29,26 @@ CUTOFF_TIMES = [
 DATA_PATH = Path(__file__).parent / "data" / "dataset.json"
 
 
+def _resolve_data_path() -> Path:
+    if DATA_PATH.exists():
+        return DATA_PATH
+    fallbacks = [
+        Path(__file__).resolve().parent.parent.parent / "backend" / "app" / "data" / "dataset.json",
+        Path.cwd() / "backend" / "app" / "data" / "dataset.json",
+        Path.cwd() / "app" / "data" / "dataset.json",
+        Path.cwd() / "data" / "dataset.json",
+    ]
+    for p in fallbacks:
+        if p.exists():
+            return p
+    return DATA_PATH
+
+
 @lru_cache(maxsize=1)
 def load_dataset() -> dict:
     """Load and cache the dataset artifact from disk."""
-    with open(DATA_PATH) as f:
+    path = _resolve_data_path()
+    with open(path) as f:
         return json.load(f)
 
 
